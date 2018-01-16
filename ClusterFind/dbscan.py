@@ -244,7 +244,7 @@ if __name__ == "__main__":
     #      scikit-learn.org/stable/modules/clustering.html#dbscan
     #      http://scikit-learn.org/stable/auto_examples/cluster/plot_dbscan
     #          .html#sphx-glr-auto-examples-cluster-plot-dbscan-py
-    print("Calculating clustings using 'DBSCAN'...")
+    print("Calculating clustering using 'DBSCAN'...")
     start = time.time()
     db = DBSCAN(eps=data.shape[1], min_samples=10).fit(data)
     end = time.time()
