@@ -25,6 +25,7 @@ from scipy.stats import norm, chi2
 from matplotlib.patches import Ellipse
 import random
 from tqdm import tqdm
+import scipy.interpolate as interpolate
 
 
 # =============================================================================
@@ -34,9 +35,9 @@ from tqdm import tqdm
 # number of stars in simulation
 N_STARS = 1000000
 # fraction of stars in moving groups
-F_GROUP = 0.40
+F_GROUP = 0.10
 # maximum distance of field stars [pc]
-FIELD_DISTANCE = 1500
+FIELD_DISTANCE = 200
 
 # Define paths
 WORKSPACE = '/scratch/Projects/Gaia_clustering'
@@ -65,6 +66,25 @@ def get_group_sizes(groupsize, n_stars):
     return groupsizes, np.sum(groupsizes)
 
 
+def sample_from_truncated_gaussian(median, fwhm, num, low=np.inf, high=np.inf):
+
+    g = np.random.normal(median, fwhm, size=num*10)
+    # find those outside truncation
+    mask = (g < low) | (g > high)
+    # remove those outside truncation
+    g = g[~mask]
+    # use distribution to get random samples
+    return inverse_transform_sampling(g, int(num/10), num)
+
+
+def inverse_transform_sampling(data, n_bins=40, n_samples=1000):
+    hist, bin_edges = np.histogram(data, bins=n_bins, density=True)
+    cum_values = np.zeros(bin_edges.shape)
+    cum_values[1:] = np.cumsum(hist * np.diff(bin_edges))
+    inv_cdf = interpolate.interp1d(cum_values, bin_edges)
+    r = np.random.rand(n_samples)
+    return inv_cdf(r)
+
 
 def generate_field_population(fieldsize):
 
@@ -72,8 +92,8 @@ def generate_field_population(fieldsize):
     yfield = np.random.uniform(-FIELD_DISTANCE, FIELD_DISTANCE, size=fieldsize)
 
     # TODO: should be from probability distributions
-    zfield = np.random.normal(loc=0.0, scale=FIELD_DISTANCE/3.0,
-                              size=fieldsize)
+    rargs = [0.0, 1500/3.0, fieldsize, -FIELD_DISTANCE, FIELD_DISTANCE]
+    zfield = sample_from_truncated_gaussian(*rargs)
 
     # TODO: should be from probability distributions
     ufield = np.random.normal(loc=0.0, scale=200/3.0, size=fieldsize)
