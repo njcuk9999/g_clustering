@@ -45,6 +45,9 @@ def get_random_choices(array, num):
     return mask
 
 
+
+
+
 def plot_dims(data, labels, n_clusters, kind='out'):
 
     # get unique labels
