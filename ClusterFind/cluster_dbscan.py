@@ -34,6 +34,10 @@ COLOURS = ['r', 'g', 'b', 'c', 'm', 'orange']
 MARKERS = ['o', 's', '*', 'd', 'v', '<', '>', '^', 'h', 'D', 'p', '8']
 
 SUBSET = True
+SUBSETSIZE = 100000
+
+DIMNAMES = ['X [pc]', 'Y [pc]', 'Z [pc]',
+            'U [mas/yr]', 'V [mas/yr]', 'W [mas/yr]']
 
 
 # =============================================================================
@@ -63,8 +67,43 @@ def optimal_grid(num):
     # return nrows, ncols and positions
     return nrows, ncols, pos
 
+def plot_data(data, limits=None):
+    # get dimensions fitted
+    Ndim = data.shape[1]
+    # get ranges for graph plotting
+    range1 = range(Ndim-1)
+    range2 = range(1, Ndim)
+    # get optimal grid
+    nrows, ncols, pos = optimal_grid(len(range1))
+    # set up figure
+    fig, frames = plt.subplots(nrows=nrows, ncols=ncols)
 
-def plot_dims(data, labels, n_clusters, kind='out'):
+    # loop around dimensions (graph positions)
+    for it in range(len(range1)):
+        # get positions of dimensions in data
+        r1, r2 = range1[it], range2[it]
+        frame = frames[pos[it][0]][pos[it][1]]
+        # plot points
+        frame.plot(data[:, r1], data[:, r2], markersize=2,
+                   marker='x', alpha=0.1,
+                   zorder=1, color='k', linestyle='none')
+        # limits
+        if limits is not None:
+            frame.set(xlim=limits[it][:2], ylim=limits[it][2:])
+        # labels
+        frame.set(xlabel='{0}'.format(DIMNAMES[r1]),
+                  ylabel='{0}'.format(DIMNAMES[r2]))
+
+    # title
+    plt.suptitle('Data before clustering')
+
+    # deal with blank frames
+    for it in range(len(range1), nrows * ncols):
+        frame = frames[pos[it][0]][pos[it][1]]
+        frame.axis('off')
+
+
+def plot_dims(data, labels, n_clusters, kind='out', setlimits=None):
 
     # get unique labels
     unique_labels = np.unique(labels)
@@ -75,8 +114,6 @@ def plot_dims(data, labels, n_clusters, kind='out'):
     while len(unique_labels) > len(markers):
         colours = np.repeat(colours, 2)
         markers = np.repeat(markers, 2)
-
-
     # get dimensions fitted
     Ndim = data.shape[1]
     # get ranges for graph plotting
@@ -87,6 +124,7 @@ def plot_dims(data, labels, n_clusters, kind='out'):
     # set up figure
     fig, frames = plt.subplots(nrows=nrows, ncols=ncols)
     # loop around dimensions (graph positions)
+    limits = []
     for it in range(len(range1)):
         # get positions of dimensions in data
         r1, r2 = range1[it], range2[it]
@@ -114,11 +152,16 @@ def plot_dims(data, labels, n_clusters, kind='out'):
                 frame.plot(xy[:, r1], xy[:, r2], markersize=2,
                            marker='x', alpha=alpha,
                            zorder=zorder, color='k', linestyle='none')
-
-            frame.set(xlabel='Dim={0}'.format(r1),
-                      ylabel='Dim={0}'.format(r2))
-
-        frame.set(xlim=stats[:2], ylim=stats[2:])
+        # set labels
+        frame.set(xlabel='{0}'.format(DIMNAMES[r1]),
+                  ylabel='{0}'.format(DIMNAMES[r2]))
+        # set limits
+        if setlimits is None:
+            frame.set(xlim=stats[:2], ylim=stats[2:])
+            limits.append(stats)
+        else:
+            frame.set(xlim=setlimits[it][:2], ylim=setlimits[it][2:])
+            limits.append(setlimits[it])
 
     # deal with blank frames
     for it in range(len(range1), nrows * ncols):
@@ -131,8 +174,10 @@ def plot_dims(data, labels, n_clusters, kind='out'):
     else:
         plt.suptitle('Estimated number of clusters: {0}'.format(n_clusters))
 
+    return limits
 
-def find_min_max(x, y, xmin, xmax, ymin, ymax, zoomout=0.05):
+
+def find_min_max(x, y, xmin, xmax, ymin, ymax, zoomout=0.10):
     """
     Takes arrays of x and y and tests limits against previously defined limits
     if limits are exceeded limits are changed with a zoom out factor
@@ -239,7 +284,7 @@ if __name__ == "__main__":
 
     # apply subset to data
     if SUBSET:
-        mask = get_random_choices(rawdata, 500000)
+        mask = get_random_choices(rawdata, SUBSETSIZE)
     else:
         mask = np.ones(len(rawdata['X']), dtype=bool)
     rawdata = rawdata[mask]
@@ -297,9 +342,13 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------
     # Plot result
     print('Plotting graph...')
-    plot_dims(data, labels, n_clusters, kind='out')
 
-    plot_dims(data, labels_true, n_clusters_true, kind='in')
+    limits = plot_dims(data, labels, n_clusters, kind='out')
+
+    limits = plot_dims(data, labels_true, n_clusters_true, kind='in',
+                       setlimits=limits)
+
+    plot_data(data, limits=limits)
 
     plt.show()
     plt.close()
