@@ -32,12 +32,36 @@ WRITEPATH = WORKSPACE + '/data/Sim/Simulation_simple.fits'
 # -----------------------------------------------------------------------------
 COLOURS = ['r', 'g', 'b', 'c', 'm', 'orange']
 MARKERS = ['o', 's', '*', 'd', 'v', '<', '>', '^', 'h', 'D', 'p', '8']
+
+SUBSET = True
+
+
 # =============================================================================
 # Define functions
 # =============================================================================
 def get_random_choices(array, num):
     mask = random.choices(range(len(array)), k=num)
     return mask
+
+
+def optimal_grid(num):
+
+    # get maximum shape
+    shape = int(np.ceil(np.sqrt(num)))
+    # get number of rows and columns based on maximum shape
+    if shape ** 2 == num:
+        nrows = shape
+        ncols = shape
+    else:
+        nrows = int(np.ceil(num / shape))
+        ncols = int(np.ceil(num / nrows))
+    # get position of figures
+    pos = []
+    for i in range(nrows):
+        for j in range(ncols):
+            pos.append([i, j])
+    # return nrows, ncols and positions
+    return nrows, ncols, pos
 
 
 def plot_dims(data, labels, n_clusters, kind='out'):
@@ -58,23 +82,15 @@ def plot_dims(data, labels, n_clusters, kind='out'):
     # get ranges for graph plotting
     range1 = range(Ndim-1)
     range2 = range(1, Ndim)
-    # get best shape
-    shape = int(np.ceil(np.sqrt(Ndim - 1)))
+    # get optimal grid
+    nrows, ncols, pos = optimal_grid(len(range1))
     # set up figure
-    fig, frames = plt.subplots(nrows=shape, ncols=shape)
-
+    fig, frames = plt.subplots(nrows=nrows, ncols=ncols)
     # loop around dimensions (graph positions)
-    for pos in range(shape**2):
-        # get position in plot
-        i, j = pos//shape, pos % shape
-        frame = frames[i][j]
-        # deal with blank plots
-        if pos >= len(range1):
-            frames[i][j].axis('off')
-            continue
+    for it in range(len(range1)):
         # get positions of dimensions in data
-        r1, r2 = range1[pos], range2[pos]
-
+        r1, r2 = range1[it], range2[it]
+        frame = frames[pos[it][0]][pos[it][1]]
         stats = [0.0, 0.0, 0.0, 0.0]
         # loop around groups
         for k_it in unique_labels:
@@ -87,24 +103,8 @@ def plot_dims(data, labels, n_clusters, kind='out'):
             else:
                 alpha = 1.0
                 zorder = 2
-
-            # masks
-            mask1 = class_member_mask & core_samples_mask
-            mask2 = class_member_mask & ~core_samples_mask
-
             # plot points in the core sample
-            xy = data[mask1]
-            if k_it != -1:
-                frame.plot(xy[:, r1], xy[:, r2], markersize=5,
-                           marker=markers[k_it], alpha=alpha,
-                           zorder=zorder, color=colours[k_it], linestyle='none')
-                stats = find_min_max(xy[:, r1], xy[:, r2], *stats)
-            else:
-                frame.plot(xy[:, r1], xy[:, r2], markersize=5,
-                           marker='+', alpha=alpha,
-                           zorder=zorder, color='k', linestyle='none')
-            # plot points not in the core sample
-            xy = data[mask2]
+            xy = data[class_member_mask]
             if k_it != -1:
                 frame.plot(xy[:, r1], xy[:, r2], markersize=2,
                            marker=markers[k_it], alpha=alpha,
@@ -120,11 +120,16 @@ def plot_dims(data, labels, n_clusters, kind='out'):
 
         frame.set(xlim=stats[:2], ylim=stats[2:])
 
+    # deal with blank frames
+    for it in range(len(range1), nrows * ncols):
+        frame = frames[pos[it][0]][pos[it][1]]
+        frame.axis('off')
+
+
     if kind == 'in':
         plt.suptitle('Simulated number of clusters: {0}'.format(n_clusters))
     else:
         plt.suptitle('Estimated number of clusters: {0}'.format(n_clusters))
-
 
 
 def find_min_max(x, y, xmin, xmax, ymin, ymax, zoomout=0.05):
@@ -171,6 +176,8 @@ def compare_results(groups, labels_true, labels):
 
         # find the key for this ugroup
         mask = groups == ugroup
+
+        in_num = np.sum(mask)
         # make sure we only have one label per group (we should)
         glabels = labels_true[mask]
         if len(np.unique(glabels)) > 1:
@@ -183,7 +190,7 @@ def compare_results(groups, labels_true, labels):
         comp = counter(labels[mask])
 
 
-        print('\n\t Group: {0}  '.format(ugroup))
+        print('\n\t Group: {0}  (Total = {1})'.format(ugroup, in_num))
         for key in comp:
 
             if key == -1:
@@ -226,18 +233,28 @@ def counter(array):
 # Main code here
 if __name__ == "__main__":
 
-
+    # get the data
     print("Loading data...")
     rawdata = Table.read(WRITEPATH)
-    mask = get_random_choices(rawdata, 500000)
+
+    # apply subset to data
+    if SUBSET:
+        mask = get_random_choices(rawdata, 500000)
+    else:
+        mask = np.ones(len(rawdata['X']), dtype=bool)
     rawdata = rawdata[mask]
 
+    # construct data matrix
     data = np.array([rawdata['X'], rawdata['Y'], rawdata['Z'],
                      rawdata['U'], rawdata['V'], rawdata['W']]).T
-
     # data = np.array([rawdata['X'], rawdata['Y'], rawdata['Z']]).T
+
+    # get the true labels and group names
     labels_true = np.array(rawdata['row'])
     groups = np.array(rawdata['group'])
+
+    # convert data to 32 bit
+    data = np.array(data, dtype=np.float32)
 
     # ----------------------------------------------------------------------
     # DBscan example from :
@@ -246,16 +263,20 @@ if __name__ == "__main__":
     #          .html#sphx-glr-auto-examples-cluster-plot-dbscan-py
     print("Calculating clustering using 'DBSCAN'...")
     start = time.time()
-    db = DBSCAN(eps=data.shape[1], min_samples=10).fit(data)
+
+    sargs = dict(eps=data.shape[1], min_samples=10)
+    db = DBSCAN(**sargs).fit(data)
     end = time.time()
     # get mask and labels
-    core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
     labels = db.labels_
     # report timing
     print('\n\t Time taken = {0} s'.format(end - start))
 
+    # ----------------------------------------------------------------------
+    # stats
     # Number of clusters in labels, ignoring noise if present.
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+    n_clusters_true = len(set(labels_true))  - (1 if -1 in labels else 0)
 
     print('\n\t Estimated number of clusters: {0}'.format(n_clusters))
     #print stats
@@ -269,18 +290,20 @@ if __name__ == "__main__":
            "\n\t V-measure: {2:.3f}\n\t Adjusted Rand Index: {3:.3f}"
            "\n\t Adjusted Mutual Information: {4:.3f}").format(*pargs))
 
+    # ----------------------------------------------------------------------
+    # comparing results
+    compare_results(groups, labels_true, labels)
+
+    # ----------------------------------------------------------------------
     # Plot result
     print('Plotting graph...')
     plot_dims(data, labels, n_clusters, kind='out')
 
-    plot_dims(data, labels_true, len(np.unique(labels_true)), kind='in')
+    plot_dims(data, labels_true, n_clusters_true, kind='in')
 
     plt.show()
     plt.close()
 
-
-    # comparing results
-    compare_results(groups, labels_true, labels)
 
 # =============================================================================
 # End of code
