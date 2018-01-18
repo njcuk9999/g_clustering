@@ -26,7 +26,8 @@ from matplotlib.patches import Ellipse
 import random
 from tqdm import tqdm
 import scipy.interpolate as interpolate
-
+from scipy.stats import kde
+import mpl_scatter_density
 
 # =============================================================================
 # Define variables
@@ -35,7 +36,7 @@ import scipy.interpolate as interpolate
 # number of stars in simulation
 N_STARS = 1000000
 # fraction of stars in moving groups
-F_GROUP = 0.10
+N_MOVING = 10000
 # maximum distance of field stars [pc]
 FIELD_DISTANCE = 200
 
@@ -208,7 +209,7 @@ def get_random_choices(array, num):
     return mask
 
 
-def plot_some_rows(sims, xaxis='X', yaxis='Y', num=1000, frame=None):
+def plot_some_rows(sims, xaxis='X', yaxis='Y', nbins=100, frame=None):
     # deal with no frame
     if frame is None:
         plot = True
@@ -217,19 +218,11 @@ def plot_some_rows(sims, xaxis='X', yaxis='Y', num=1000, frame=None):
         plot = False
     # get columns
     rows = np.array(sims['row'])
-    axis1 = np.array(sims[xaxis])
-    axis2 = np.array(sims[yaxis])
-    # choose which to plot
-    mask = get_random_choices(axis1, num)
-    # set field pop to black
-    black = rows[mask] == -1
-    notblack = rows[mask] != -1
-    # plot scatter plot for field
-    frame.scatter(axis1[mask][black], axis2[mask][black],
-                  color='k', s=1, marker='.')
-    # plot scatter plot for groups
-    frame.scatter(axis1[mask][notblack], axis2[mask][notblack],
-                  color='b', s=1, marker='.')
+    x = np.array(sims[xaxis])
+    y = np.array(sims[yaxis])
+
+    frame.scatter_density(x, y)
+
     # finalise
     if plot:
         plt.show()
@@ -247,6 +240,11 @@ def plot_ellipse(frame, mu1, mu2, sig00, sig11, colour='k'):
     frame.add_artist(ell)
 
     return frame
+
+
+def get_random_choices(array_length, num):
+    mask = random.choices(range(array_length), k=num)
+    return mask
 
 
 # =============================================================================
@@ -272,7 +270,9 @@ if __name__ == "__main__":
 
     # -------------------------------------------------------------------------
     # work out the number of objects in each group
-    total_in_groups = int(F_GROUP * N_STARS)
+
+    f_group = N_MOVING/N_STARS
+    total_in_groups = int(f_group * N_STARS)
     num_groups = len(simdata)
 
     # create the numbers in each group
@@ -327,16 +327,21 @@ if __name__ == "__main__":
     grouppos = [[0, 0], [0, 1], [1, 0], [1, 1]]
 
     # set up figure
-    fig, frames = plt.subplots(ncols=2, nrows=2)
+    fig = plt.figure()
+    frames = [fig.add_subplot(2, 2, 1, projection='scatter_density'),
+              fig.add_subplot(2, 2, 2, projection='scatter_density'),
+              fig.add_subplot(2, 2, 3, projection='scatter_density'),
+              fig.add_subplot(2, 2, 4, projection='scatter_density')]
+
     # loop around plot groups
-    for g_it in range(len(groups)):
+    for g_it in tqdm(range(len(groups))):
         # get this iterations values
         gax1, gax2 = groups[g_it]
         egax1, egax2 = groupsigs[g_it]
         # get this iterations frame
-        frame = frames[grouppos[g_it][0], grouppos[g_it][1]]
+        frame = frames[g_it]
         # plot sim data
-        frame = plot_some_rows(sims, gax1, gax2, 5000, frame)
+        frame = plot_some_rows(sims, gax1, gax2, 100, frame)
         # plot group boundaries and names
         frame = plot_2D(simdata, gax1, gax2, egax1, egax2, frame)
         # finalise and show
