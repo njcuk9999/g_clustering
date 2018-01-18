@@ -20,7 +20,7 @@ from sklearn import metrics
 import random
 import matplotlib.pyplot as plt
 import time
-
+from sklearn.neighbors import NearestNeighbors
 
 # =============================================================================
 # Define variables
@@ -30,11 +30,10 @@ WORKSPACE = '/scratch/Projects/Gaia_clustering'
 WRITEPATH = WORKSPACE + '/data/Sim/Simulation_simple.fits'
 
 # -----------------------------------------------------------------------------
-COLOURS = ['r', 'g', 'b', 'c', 'm', 'orange']
-MARKERS = ['o', 's', '*', 'd', 'v', '<', '>', '^', 'h', 'D', 'p', '8']
+MARKERS = ['o', 'x', '+', '*']
 
 SUBSET = True
-SUBSETSIZE = 100000
+SUBSETSIZE = 500000
 
 DIMNAMES = ['X [pc]', 'Y [pc]', 'Z [pc]',
             'U [mas/yr]', 'V [mas/yr]', 'W [mas/yr]']
@@ -43,8 +42,8 @@ DIMNAMES = ['X [pc]', 'Y [pc]', 'Z [pc]',
 # =============================================================================
 # Define functions
 # =============================================================================
-def get_random_choices(array, num):
-    mask = random.choices(range(len(array)), k=num)
+def get_random_choices(array_length, num):
+    mask = random.choices(range(array_length), k=num)
     return mask
 
 
@@ -66,6 +65,7 @@ def optimal_grid(num):
             pos.append([i, j])
     # return nrows, ncols and positions
     return nrows, ncols, pos
+
 
 def plot_data(data, limits=None):
     # get dimensions fitted
@@ -108,12 +108,9 @@ def plot_dims(data, labels, n_clusters, kind='out', setlimits=None):
     # get unique labels
     unique_labels = np.unique(labels)
     # get colour marker combinations
-    colours = np.tile(COLOURS, len(MARKERS))
-    markers = np.repeat(MARKERS, len(COLOURS))
-    # make sure we are not repeating
-    while len(unique_labels) > len(markers):
-        colours = np.repeat(colours, 2)
-        markers = np.repeat(markers, 2)
+    colors = [plt.cm.jet(each)
+              for each in np.linspace(0, 1, len(unique_labels))]
+    marks = np.random.choice(MARKERS, size=len(unique_labels))
     # get dimensions fitted
     Ndim = data.shape[1]
     # get ranges for graph plotting
@@ -145,13 +142,14 @@ def plot_dims(data, labels, n_clusters, kind='out', setlimits=None):
             xy = data[class_member_mask]
             if k_it != -1:
                 frame.plot(xy[:, r1], xy[:, r2], markersize=2,
-                           marker=markers[k_it], alpha=alpha,
-                           zorder=zorder, color=colours[k_it], linestyle='none')
+                           marker=marks[k_it], alpha=alpha,
+                           zorder=zorder, color=tuple(colors[k_it]),
+                           linestyle='none')
                 stats = find_min_max(xy[:, r1], xy[:, r2], *stats)
             else:
-                frame.plot(xy[:, r1], xy[:, r2], markersize=2,
-                           marker='x', alpha=alpha,
-                           zorder=zorder, color='k', linestyle='none')
+                frame.plot(xy[:, r1], xy[:, r2], markersize=1,
+                           marker='.', zorder=zorder, color='k',
+                           linestyle='none')
         # set labels
         frame.set(xlabel='{0}'.format(DIMNAMES[r1]),
                   ylabel='{0}'.format(DIMNAMES[r2]))
@@ -235,7 +233,7 @@ def compare_results(groups, labels_true, labels):
         comp = counter(labels[mask])
 
 
-        print('\n\t Group: {0}  (Total = {1})'.format(ugroup, in_num))
+        printlog('\t Group: {0}  (Total = {1})'.format(ugroup, in_num))
         for key in comp:
 
             if key == -1:
@@ -245,7 +243,7 @@ def compare_results(groups, labels_true, labels):
             else:
                 ll = 'NEW (G={0})'.format(key)
 
-            print('\t\tlabel={0}   number found={1}'.format(ll, comp[key]))
+            printlog('\t\tlabel={0}   number found={1}'.format(ll, comp[key]))
 
             if key == -1:
                 newlabelgroup[key] = 'NOISE'
@@ -272,6 +270,15 @@ def counter(array):
     return ddict2
 
 
+def printlog(message):
+    message = message.split('\n')
+    for mess in message:
+        unix_time = time.time()
+        human_time = time.strftime('%H:%M:%S', time.localtime(unix_time))
+        dsec = int((unix_time - int(unix_time)) * 100)
+        print('{0}.{1:02d} | {2}'.format(human_time, dsec, mess))
+
+
 # =============================================================================
 # Start of code
 # =============================================================================
@@ -279,12 +286,12 @@ def counter(array):
 if __name__ == "__main__":
 
     # get the data
-    print("Loading data...")
+    printlog("Loading data...")
     rawdata = Table.read(WRITEPATH)
 
     # apply subset to data
     if SUBSET:
-        mask = get_random_choices(rawdata, SUBSETSIZE)
+        mask = get_random_choices(len(rawdata), SUBSETSIZE)
     else:
         mask = np.ones(len(rawdata['X']), dtype=bool)
     rawdata = rawdata[mask]
@@ -306,16 +313,16 @@ if __name__ == "__main__":
     #      scikit-learn.org/stable/modules/clustering.html#dbscan
     #      http://scikit-learn.org/stable/auto_examples/cluster/plot_dbscan
     #          .html#sphx-glr-auto-examples-cluster-plot-dbscan-py
-    print("Calculating clustering using 'DBSCAN'...")
+    printlog("Calculating clustering using 'DBSCAN'...")
     start = time.time()
 
-    sargs = dict(eps=data.shape[1], min_samples=10)
+    sargs = dict(eps=data.shape[1], min_samples=75)
     db = DBSCAN(**sargs).fit(data)
     end = time.time()
     # get mask and labels
     labels = db.labels_
     # report timing
-    print('\n\t Time taken = {0} s'.format(end - start))
+    printlog('\t Time taken = {0} s'.format(end - start))
 
     # ----------------------------------------------------------------------
     # stats
@@ -323,7 +330,7 @@ if __name__ == "__main__":
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
     n_clusters_true = len(set(labels_true))  - (1 if -1 in labels else 0)
 
-    print('\n\t Estimated number of clusters: {0}'.format(n_clusters))
+    printlog('\t Estimated number of clusters: {0}'.format(n_clusters))
     #print stats
     args = [labels_true, labels]
     pargs = [metrics.homogeneity_score(*args),
@@ -331,24 +338,28 @@ if __name__ == "__main__":
              metrics.v_measure_score(*args),
              metrics.adjusted_rand_score(*args),
              metrics.adjusted_mutual_info_score(*args)]
-    print(("\n\t Homogeneity: {0:.3f}\n\t Completeness: {1:.3f}"
-           "\n\t V-measure: {2:.3f}\n\t Adjusted Rand Index: {3:.3f}"
-           "\n\t Adjusted Mutual Information: {4:.3f}").format(*pargs))
+    printlog("\t Homogeneity: {0:.3f}\n\t Completeness: {1:.3f}"
+             "\n\t V-measure: {2:.3f}\n\t Adjusted Rand Index: {3:.3f}"
+             "\n\t Adjusted Mutual Information: {4:.3f}".format(*pargs))
 
     # ----------------------------------------------------------------------
     # comparing results
+    printlog('Comparing results...')
     compare_results(groups, labels_true, labels)
 
     # ----------------------------------------------------------------------
     # Plot result
-    print('Plotting graph...')
+    printlog('Plotting graph...')
 
-    limits = plot_dims(data, labels, n_clusters, kind='out')
+    # dont plot all results
+    mask = get_random_choices(len(data), 100000)
 
-    limits = plot_dims(data, labels_true, n_clusters_true, kind='in',
-                       setlimits=limits)
+    limits = plot_dims(data[mask], labels[mask], n_clusters, kind='out')
 
-    plot_data(data, limits=limits)
+    limits = plot_dims(data[mask], labels_true[mask], n_clusters_true,
+                       kind='in', setlimits=limits)
+
+    plot_data(data[mask], limits=limits)
 
     plt.show()
     plt.close()
