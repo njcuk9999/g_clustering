@@ -16,18 +16,16 @@ Version 0.0.0
 
 import numpy as np
 import matplotlib.pyplot as plt
-from astropy.io import fits
 from astropy.table import Table
-from astropy import units as u
-from tqdm import tqdm
-import warnings
 from scipy.stats import norm, chi2
 from matplotlib.patches import Ellipse
 import random
 from tqdm import tqdm
 import scipy.interpolate as interpolate
-from scipy.stats import kde
 import mpl_scatter_density
+from astropy.visualization import LogStretch
+from astropy.visualization.mpl_normalize import ImageNormalize
+
 
 # =============================================================================
 # Define variables
@@ -158,7 +156,6 @@ def cov_ellipse(cov, q=None, nsig=None, **kwargs):
          The lengths of two axises and the rotation angle in degree
     for the ellipse.
     """
-
     if q is not None:
         q = np.asarray(q)
     elif nsig is not None:
@@ -209,11 +206,18 @@ def get_random_choices(array, num):
     return mask
 
 
-def plot_some_rows(sims, xaxis='X', yaxis='Y', nbins=100, frame=None):
+def plot_some_rows(sims, xaxis='X', yaxis='Y', nbins=100, fig=None, frame=None):
+
+
+
+    norm = ImageNormalize(vmin=0., vmax=1000, stretch=LogStretch())
+
+
     # deal with no frame
     if frame is None:
         plot = True
-        fig, frame = plt.subplots(ncols=1, nrows=1)
+        fig = plt.figure()
+        frame = fig.add_subplot(1, 1, 1, projection='scatter_density')
     else:
         plot = False
     # get columns
@@ -221,7 +225,10 @@ def plot_some_rows(sims, xaxis='X', yaxis='Y', nbins=100, frame=None):
     x = np.array(sims[xaxis])
     y = np.array(sims[yaxis])
 
-    frame.scatter_density(x, y)
+    density = frame.scatter_density(x, y, norm=norm)
+
+    fig.colorbar(density, label='Number of points per pixel',
+                 ax=frame)
 
     # finalise
     if plot:
@@ -240,11 +247,6 @@ def plot_ellipse(frame, mu1, mu2, sig00, sig11, colour='k'):
     frame.add_artist(ell)
 
     return frame
-
-
-def get_random_choices(array_length, num):
-    mask = random.choices(range(array_length), k=num)
-    return mask
 
 
 # =============================================================================
@@ -322,6 +324,9 @@ if __name__ == "__main__":
     print('\n Plotting graph...')
 
     groups = [['Y', 'X'], ['X', 'Z'], ['U', 'V'], ['U', 'W']]
+    grouplabels = [['Y [pc]', 'X [pc]'], ['X [pc]', 'Z [pc]'],
+                   ['U [mas/yr]', 'V [mas/yr]'],
+                   ['U [mas/yr]', 'W [mas/yr]']]
     groupsigs = [['sig11', 'sig00'], ['sig00', 'sig22'],
                  ['sig33', 'sig44'], ['sig33', 'sig44']]
     grouppos = [[0, 0], [0, 1], [1, 0], [1, 1]]
@@ -338,15 +343,16 @@ if __name__ == "__main__":
         # get this iterations values
         gax1, gax2 = groups[g_it]
         egax1, egax2 = groupsigs[g_it]
+        gax1label, gax2label = grouplabels[g_it]
         # get this iterations frame
         frame = frames[g_it]
         # plot sim data
-        frame = plot_some_rows(sims, gax1, gax2, 100, frame)
+        frame = plot_some_rows(sims, gax1, gax2, 100, fig, frame)
         # plot group boundaries and names
         frame = plot_2D(simdata, gax1, gax2, egax1, egax2, frame)
         # finalise and show
-        frame.set(xlabel='{0} [pc]'.format(gax1),
-                  ylabel='{0} [pc]'.format(gax2))
+        frame.set(xlabel='{0}'.format(gax1label),
+                  ylabel='{0}'.format(gax2label))
     # show and close
     plt.show()
     plt.close()
