@@ -316,7 +316,7 @@ if __name__ == "__main__":
     printlog("Calculating clustering using 'DBSCAN'...")
     start = time.time()
 
-    sargs = dict(eps=data.shape[1], min_samples=75)
+    sargs = dict(eps=50, min_samples=50)
     db = DBSCAN(**sargs).fit(data)
     end = time.time()
     # get mask and labels
