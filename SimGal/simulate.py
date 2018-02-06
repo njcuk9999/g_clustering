@@ -26,13 +26,12 @@ import mpl_scatter_density
 from astropy.visualization import LogStretch
 from astropy.visualization.mpl_normalize import ImageNormalize
 
-
 # =============================================================================
 # Define variables
 # =============================================================================
 
 # number of stars in simulation
-N_STARS = 1000000
+N_STARS = 100000
 # fraction of stars in moving groups
 N_MOVING = 10000
 # maximum distance of field stars [pc]
@@ -43,7 +42,9 @@ WORKSPACE = '/scratch/Projects/Gaia_clustering'
 MVGROUPS = WORKSPACE + '/data/Gagne/Clusters.csv'
 WRITEPATH = WORKSPACE + '/data/Sim/Simulation_simple.fits'
 
+DENSITY_PLOT = False
 
+HIGHLIGHT = ['BETAPMG', 'ABDMG']
 # -----------------------------------------------------------------------------
 
 # =============================================================================
@@ -56,7 +57,7 @@ def read_groups(filename):
 
 def get_group_sizes(groupsize, n_stars):
     # get raw numbers between 0 and 1
-    raw = np.random.uniform(0, 1, size=groupsize)
+    raw = np.random.uniform(0.1, 1, size=groupsize)
     # get sizes of each number (that sum to sum)
     new = n_stars * raw/np.sum(raw)
     # convert to integers
@@ -187,12 +188,18 @@ def plot_2D(data, xaxis='X', yaxis='Y', sigxaxis='sig00', sigyaxis='sig11',
         plot = False
     # loop around groups
     for row in range(len(data)):
+
+        if name[row] in HIGHLIGHT:
+            colour = 'y'
+        else:
+            colour = 'r'
+
         frame = plot_ellipse(frame, axis1[row], axis2[row], eaxis1[row],
-                             eaxis2[row], colour='r')
+                             eaxis2[row], colour=colour)
         # frame.plot(Y[row], X[row], color='k', marker='x', ms=3)
         frame.text(axis1[row], axis2[row], s=name[row],
                    horizontalalignment='center',
-                   verticalalignment='center', color='g')
+                   verticalalignment='center', color='g').set_clip_on(True)
     # finalise
     if plot:
         plt.show()
@@ -210,7 +217,7 @@ def plot_some_rows(sims, xaxis='X', yaxis='Y', nbins=100, fig=None, frame=None):
 
 
 
-    norm = ImageNormalize(vmin=0., vmax=1000, stretch=LogStretch())
+    # norm = ImageNormalize(vmin=0., vmax=1000, stretch=LogStretch())
 
 
     # deal with no frame
@@ -225,10 +232,12 @@ def plot_some_rows(sims, xaxis='X', yaxis='Y', nbins=100, fig=None, frame=None):
     x = np.array(sims[xaxis])
     y = np.array(sims[yaxis])
 
-    density = frame.scatter_density(x, y, norm=norm)
-
-    fig.colorbar(density, label='Number of points per pixel',
-                 ax=frame)
+    if DENSITY_PLOT:
+        density = frame.scatter_density(x, y) #, norm=norm)
+        fig.colorbar(density, label='Number of points per pixel',
+                     ax=frame)
+    else:
+        frame.scatter(x, y, s=1, marker='.', color='k')
 
     # finalise
     if plot:
@@ -350,9 +359,15 @@ if __name__ == "__main__":
         frame = plot_some_rows(sims, gax1, gax2, 100, fig, frame)
         # plot group boundaries and names
         frame = plot_2D(simdata, gax1, gax2, egax1, egax2, frame)
+
         # finalise and show
         frame.set(xlabel='{0}'.format(gax1label),
                   ylabel='{0}'.format(gax2label))
+
+    title = ('Number of stars = {0}    Number of stars in groups = {1}'
+             '\n Fraction = {2:.4f}')
+    titleargs = [N_STARS, N_MOVING, 1.0*N_MOVING/N_STARS]
+    plt.suptitle(title.format(*titleargs))
     # show and close
     plt.show()
     plt.close()
