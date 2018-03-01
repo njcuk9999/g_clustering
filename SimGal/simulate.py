@@ -22,9 +22,7 @@ from matplotlib.patches import Ellipse
 import random
 from tqdm import tqdm
 import scipy.interpolate as interpolate
-import mpl_scatter_density
-from astropy.visualization import LogStretch
-from astropy.visualization.mpl_normalize import ImageNormalize
+
 
 # =============================================================================
 # Define variables
@@ -46,6 +44,7 @@ DENSITY_PLOT = False
 
 HIGHLIGHT = ['BETAPMG', 'ABDMG']
 # -----------------------------------------------------------------------------
+
 
 # =============================================================================
 # Define group functions
@@ -214,12 +213,7 @@ def get_random_choices(array, num):
 
 
 def plot_some_rows(sims, xaxis='X', yaxis='Y', nbins=100, fig=None, frame=None):
-
-
-
     # norm = ImageNormalize(vmin=0., vmax=1000, stretch=LogStretch())
-
-
     # deal with no frame
     if frame is None:
         plot = True
@@ -233,7 +227,7 @@ def plot_some_rows(sims, xaxis='X', yaxis='Y', nbins=100, fig=None, frame=None):
     y = np.array(sims[yaxis])
 
     if DENSITY_PLOT:
-        density = frame.scatter_density(x, y) #, norm=norm)
+        density = frame.scatter_density(x, y)   # , norm=norm)
         fig.colorbar(density, label='Number of points per pixel',
                      ax=frame)
     else:
@@ -327,7 +321,6 @@ if __name__ == "__main__":
     sims['V'] += list(data_field[4])
     sims['W'] += list(data_field[5])
     sims['group'] += list(np.repeat('FIELD', total_in_field))
-
 
     # -------------------------------------------------------------------------
     print('\n Plotting graph...')
