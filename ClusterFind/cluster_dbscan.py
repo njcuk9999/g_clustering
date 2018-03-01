@@ -21,8 +21,7 @@ import random
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import time
-from sklearn.neighbors import NearestNeighbors
-from mpl_toolkits.mplot3d import Axes3D
+
 
 # =============================================================================
 # Define variables
@@ -40,22 +39,21 @@ SUBSETSIZE = 500000
 DIMNAMES = ['X [pc]', 'Y [pc]', 'Z [pc]',
             'U [mas/yr]', 'V [mas/yr]', 'W [mas/yr]']
 
-
 PLOT_BACKGROUND = True
 PLOT_3D_ALL = False
 PLOT_3D_MERGED = True
 PLOT_2D_ALL = True
 
+
 # =============================================================================
 # Define functions
 # =============================================================================
 def get_random_choices(array_length, num):
-    mask = random.choices(range(array_length), k=num)
-    return mask
+    rmask = random.choices(range(array_length), k=num)
+    return rmask
 
 
 def optimal_grid(num):
-
     # get maximum shape
     shape = int(np.ceil(np.sqrt(num)))
     # get number of rows and columns based on maximum shape
@@ -74,12 +72,12 @@ def optimal_grid(num):
     return nrows, ncols, pos
 
 
-def plot_data(data, setlimits=None):
+def plot_data(d):
     # get dimensions fitted
-    Ndim = data.shape[1]
+    ndim = d.shape[1]
     # get ranges for graph plotting
-    range1 = range(Ndim-1)
-    range2 = range(1, Ndim)
+    range1 = range(ndim - 1)
+    range2 = range(1, ndim)
     # get optimal grid
     nrows, ncols, pos = optimal_grid(len(range1))
     # set up figure
@@ -91,7 +89,7 @@ def plot_data(data, setlimits=None):
         r1, r2 = range1[it], range2[it]
         frame = frames[pos[it][0]][pos[it][1]]
         # plot points
-        frame.plot(data[:, r1], data[:, r2], markersize=2,
+        frame.plot(d[:, r1], d[:, r2], markersize=2,
                    marker='x', alpha=0.1,
                    zorder=1, color='k', linestyle='none')
         # limits
@@ -110,20 +108,19 @@ def plot_data(data, setlimits=None):
         frame.axis('off')
 
 
-def plot_data3d(data, setlimits=None):
-
+def plot_data3d(d, setlimits=None):
     # set up figure
-    fig = plt.figure()
+    plt.figure()
     frame1 = plt.subplot(121, projection='3d')
     frame2 = plt.subplot(122, projection='3d')
 
     # plot points
-    frame1.plot(data[:, 0], data[:, 1], data[:, 2], markersize=2,
-               marker='x', alpha=0.1,
-               zorder=1, color='k', linestyle='none')
-    frame2.plot(data[:, 3], data[:, 4], data[:, 5], markersize=2,
-               marker='x', alpha=0.1,
-               zorder=1, color='k', linestyle='none')
+    frame1.plot(d[:, 0], d[:, 1], d[:, 2], markersize=2,
+                marker='x', alpha=0.1,
+                zorder=1, color='k', linestyle='none')
+    frame2.plot(d[:, 3], d[:, 4], d[:, 5], markersize=2,
+                marker='x', alpha=0.1,
+                zorder=1, color='k', linestyle='none')
 
     # set limits
     if setlimits is not None:
@@ -144,25 +141,24 @@ def plot_data3d(data, setlimits=None):
     plt.suptitle('Data before clustering')
 
 
-def plot_dims(data, labels, n_clusters, kind='out', setlimits=None):
-
+def plot_dims(d, idlabels, nclusters, kind='out', setlimits=None):
     # get unique labels
-    unique_labels = np.unique(labels)
+    unique_labels = np.unique(idlabels)
     # get colour marker combinations
     colors = [plt.cm.jet(each)
               for each in np.linspace(0, 1, len(unique_labels))]
     marks = np.random.choice(MARKERS, size=len(unique_labels))
     # get dimensions fitted
-    Ndim = data.shape[1]
+    ndim = d.shape[1]
     # get ranges for graph plotting
-    range1 = range(Ndim-1)
-    range2 = range(1, Ndim)
+    range1 = range(ndim - 1)
+    range2 = range(1, ndim)
     # get optimal grid
     nrows, ncols, pos = optimal_grid(len(range1))
     # set up figure
     fig, frames = plt.subplots(nrows=nrows, ncols=ncols)
     # loop around dimensions (graph positions)
-    limits = []
+    grphlimits = []
     for it in range(len(range1)):
         # get positions of dimensions in data
         r1, r2 = range1[it], range2[it]
@@ -171,7 +167,7 @@ def plot_dims(data, labels, n_clusters, kind='out', setlimits=None):
         # loop around groups
         for k_it in unique_labels:
             # get members for this group
-            class_member_mask = (labels == k_it)
+            class_member_mask = (idlabels == k_it)
             # if noise set the colour to black
             if k_it == -1:
                 alpha = 0.1
@@ -182,7 +178,7 @@ def plot_dims(data, labels, n_clusters, kind='out', setlimits=None):
                 alpha = 1.0
                 zorder = 2
             # plot points in the core sample
-            xy = data[class_member_mask]
+            xy = d[class_member_mask]
             if k_it != -1:
                 frame.plot(xy[:, r1], xy[:, r2], markersize=2,
                            marker=marks[k_it], alpha=alpha,
@@ -199,10 +195,10 @@ def plot_dims(data, labels, n_clusters, kind='out', setlimits=None):
         # set limits
         if setlimits is None:
             frame.set(xlim=stats[:2], ylim=stats[2:])
-            limits.append(stats)
+            grphlimits.append(stats)
         else:
             frame.set(xlim=setlimits[it][:2], ylim=setlimits[it][2:])
-            limits.append(setlimits[it])
+            grphlimits.append(setlimits[it])
 
     # deal with blank frames
     for it in range(len(range1), nrows * ncols):
@@ -211,32 +207,31 @@ def plot_dims(data, labels, n_clusters, kind='out', setlimits=None):
 
     title = ('\n Number of stars = {0}    Number of stars in groups = {1}'
              '\n Fraction = {2:.4f}')
-    targs = [len(data), np.sum(labels != -1),
-             np.sum(labels != -1)/(1.0*len(data))]
+    targs = [len(d), np.sum(idlabels != -1),
+             np.sum(idlabels != -1) / (1.0 * len(d))]
     if kind == 'in':
-        suptitle = 'Simulated number of clusters: {0}'.format(n_clusters)
+        suptitle = 'Simulated number of clusters: {0}'.format(nclusters)
         suptitle += title.format(*targs)
     else:
-        suptitle = 'Estimated number of clusters: {0}'.format(n_clusters)
+        suptitle = 'Estimated number of clusters: {0}'.format(nclusters)
         suptitle += title.format(*targs)
 
     plt.suptitle(suptitle)
 
-    return limits
+    return grphlimits
 
 
-def plot_dims3d(data, labels, n_clusters, kind='out', setlimits=None,
+def plot_dims3d(d, idlabels, nclusters, kind='out', setlimits=None,
                 names=None):
-
     # get unique labels
-    unique_labels = np.unique(labels)
+    unique_labels = np.unique(idlabels)
     # get colour marker combinations
     colors = [plt.cm.jet(each)
               for each in np.linspace(0, 1, len(unique_labels))]
     marks = np.random.choice(MARKERS, size=len(unique_labels))
 
     # set up figure
-    fig = plt.figure()
+    plt.figure()
     frame1 = plt.subplot(131, projection='3d')
     frame2 = plt.subplot(132, projection='3d')
     frame3 = plt.subplot(133)
@@ -247,7 +242,7 @@ def plot_dims3d(data, labels, n_clusters, kind='out', setlimits=None,
     for it in range(len(unique_labels)):
         # get members for this group
         k_it = unique_labels[it]
-        class_member_mask = (labels == k_it)
+        class_member_mask = (idlabels == k_it)
         # if noise set the colour to black
         if k_it == -1:
             alpha = 0.1
@@ -258,23 +253,23 @@ def plot_dims3d(data, labels, n_clusters, kind='out', setlimits=None,
             alpha = 1.0
             zorder = 2
         # plot points in the core sample
-        xy = data[class_member_mask]
+        xy = d[class_member_mask]
         if k_it != -1:
-            frame1.plot(xy[:, 0], xy[:, 1], xy[:, 2], markersize = 2,
-                       marker = marks[it], alpha = alpha,
-                       zorder = zorder, color = tuple(colors[it]),
-                       linestyle = 'none')
-            frame2.plot(xy[:, 3], xy[:, 4], xy[:, 5], markersize = 2,
-                       marker = marks[it], alpha = alpha,
-                       zorder = zorder, color = tuple(colors[it]),
-                       linestyle = 'none')
+            frame1.plot(xy[:, 0], xy[:, 1], xy[:, 2], markersize=2,
+                        marker=marks[it], alpha=alpha,
+                        zorder=zorder, color=tuple(colors[it]),
+                        linestyle='none')
+            frame2.plot(xy[:, 3], xy[:, 4], xy[:, 5], markersize=2,
+                        marker=marks[it], alpha=alpha,
+                        zorder=zorder, color=tuple(colors[it]),
+                        linestyle='none')
 
             stats = get_6d_stats(xy, stats)
 
         else:
             frame1.plot(xy[:, 0], xy[:, 1], xy[:, 2], markersize=1,
-                       marker='.', zorder=zorder, color='k',
-                       linestyle='none')
+                        marker='.', zorder=zorder, color='k',
+                        linestyle='none')
             frame2.plot(xy[:, 3], xy[:, 4], xy[:, 5], markersize=1,
                         marker='.', zorder=zorder, color='k',
                         linestyle='none')
@@ -291,42 +286,41 @@ def plot_dims3d(data, labels, n_clusters, kind='out', setlimits=None,
     if setlimits is None:
         frame1.set(xlim=stats[:2], ylim=stats[2:4], zlim=stats[4:6])
         frame2.set(xlim=stats[6:8], ylim=stats[8:10], zlim=stats[10:12])
-        limits = stats
+        grphlimits = stats
     else:
         frame1.set(xlim=setlimits[:2], ylim=setlimits[2:4],
                    zlim=setlimits[4:6])
         frame2.set(xlim=setlimits[6:8], ylim=setlimits[8:10],
                    zlim=setlimits[10:12])
-        limits = stats
+        grphlimits = stats
 
     title = ('\n Number of stars = {0}    Number of stars in groups = {1}'
              '\n Fraction = {2:.4f}')
-    targs = [len(data), np.sum(labels != -1),
-             np.sum(labels != -1)/(1.0*len(data))]
+    targs = [len(d), np.sum(idlabels != -1),
+             np.sum(idlabels != -1) / (1.0 * len(d))]
     if kind == 'in':
-        suptitle = 'Simulated number of clusters: {0}'.format(n_clusters)
+        suptitle = 'Simulated number of clusters: {0}'.format(nclusters)
         suptitle += title.format(*targs)
     else:
-        suptitle = 'Estimated number of clusters: {0}'.format(n_clusters)
+        suptitle = 'Estimated number of clusters: {0}'.format(nclusters)
         suptitle += title.format(*targs)
 
     plt.suptitle(suptitle)
 
-
     # deal with frame 3 (legend)
 
-    handles, labels = [], []
+    handles, idlabels = [], []
     for it in range(len(unique_labels)):
         if names is not None:
-            labels.append(names[unique_labels[it]])
+            idlabels.append(names[unique_labels[it]])
         else:
-            labels.append(unique_labels[it])
+            idlabels.append(unique_labels[it])
         handles.append(Line2D([0], [0], color=colors[it], lw=0,
                               marker='o', ms=10))
     frame3.axis('off')
-    frame3.legend(handles, labels, loc=10)
+    frame3.legend(handles, idlabels, loc=10)
 
-    return limits
+    return grphlimits
 
 
 def find_min_max(x, y, xmin, xmax, ymin, ymax, zoomout=0.10):
@@ -397,29 +391,28 @@ def get_6d_stats(xy, stats):
     return stats
 
 
-def compare_results(groups, labels_true, labels):
-
-    ugroups = np.unique(groups)
+def compare_results(allgroups, idlabels_true, idlabels):
+    ugroups = np.unique(allgroups)
 
     newlabelgroup = dict()
-    merged = []
+    allmerged = []
 
     for ugroup in ugroups:
 
         # find the key for this ugroup
-        mask = groups == ugroup
+        gmask = allgroups == ugroup
 
-        in_num = np.sum(mask)
+        in_num = np.sum(gmask)
         # make sure we only have one label per group (we should)
-        glabels = labels_true[mask]
+        glabels = idlabels_true[gmask]
         if len(np.unique(glabels)) > 1:
             raise ValueError('Group {0} has more than one key!'.format(ugroup))
         else:
             ulabel = glabels[0]
         # get label mask
-        mask = labels_true == ulabel
+        lmask = idlabels_true == ulabel
         # count the number of labels in group
-        comp = counter(labels[mask])
+        comp = counter(idlabels[lmask])
 
         printlog('\t Group: {0}  (Total = {1})'.format(ugroup, in_num))
         for key in comp:
@@ -428,7 +421,7 @@ def compare_results(groups, labels_true, labels):
                 ll = 'NOISE (G=-1)'
             elif key in newlabelgroup:
                 ll = '{0} (G={1})'.format(newlabelgroup[key], key)
-                merged.append([ugroup, newlabelgroup[key]])
+                allmerged.append([ugroup, newlabelgroup[key]])
             else:
                 ll = 'NEW (G={0})'.format(key)
 
@@ -439,7 +432,7 @@ def compare_results(groups, labels_true, labels):
             elif key not in newlabelgroup:
                 newlabelgroup[key] = ugroup
 
-    return merged
+    return allmerged
 
 
 def counter(array):
@@ -470,12 +463,12 @@ def printlog(message):
         print('{0}.{1:02d} | {2}'.format(human_time, dsec, mess))
 
 
-def join_names_and_labels(labels, names):
-
+def join_names_and_labels(idlabels, names):
     datadict = dict()
-    for it in range(len(labels)):
-        datadict[labels[it]] = names[it]
+    for it in range(len(idlabels)):
+        datadict[idlabels[it]] = names[it]
     return datadict
+
 
 # =============================================================================
 # Start of code
@@ -528,10 +521,10 @@ if __name__ == "__main__":
     # stats
     # Number of clusters in labels, ignoring noise if present.
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-    n_clusters_true = len(set(labels_true))  - (1 if -1 in labels else 0)
+    n_clusters_true = len(set(labels_true)) - (1 if -1 in labels else 0)
 
     printlog('\t Estimated number of clusters: {0}'.format(n_clusters))
-    #print stats
+    # print stats
     args = [labels_true, labels]
     pargs = [metrics.homogeneity_score(*args),
              metrics.completeness_score(*args),
@@ -559,10 +552,9 @@ if __name__ == "__main__":
         limits = plot_dims3d(data[mask], labels[mask], n_clusters, kind='out')
 
         limits = plot_dims3d(data[mask], labels_true[mask], n_clusters_true,
-                           kind='in', setlimits=limits)
+                             kind='in', setlimits=limits)
 
         plot_data3d(data[mask], setlimits=limits)
-
 
     if PLOT_2D_ALL:
         # dont plot all results
@@ -574,7 +566,7 @@ if __name__ == "__main__":
         limits = plot_dims(data[mask], labels_true[mask], n_clusters_true,
                            kind='in', setlimits=limits)
 
-        plot_data(data[mask], setlimits=limits)
+        plot_data(data[mask])
 
     # ----------------------------------------------------------------------
     # plot merged
