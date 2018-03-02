@@ -21,6 +21,7 @@ import random
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import time
+from mpl_toolkits.mplot3d import Axes3D
 
 
 # =============================================================================
@@ -41,7 +42,7 @@ DIMNAMES = ['X [pc]', 'Y [pc]', 'Z [pc]',
 
 PLOT_BACKGROUND = True
 PLOT_3D_ALL = False
-PLOT_3D_MERGED = True
+PLOT_3D_MERGED = False
 PLOT_2D_ALL = True
 
 
