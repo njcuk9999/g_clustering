@@ -21,6 +21,7 @@ import random
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import time
+from mpl_toolkits.mplot3d import Axes3D
 
 
 # =============================================================================
@@ -37,12 +38,12 @@ SUBSET = False
 SUBSETSIZE = 500000
 
 DIMNAMES = ['RA [deg]', 'Dec [deg]', 'Distance [pc]',
-            'PMRA [mas/yr]', 'PMDE [mas/yr]']
-COLNAMES = ['ra', 'dec', 'dist', 'pmra', 'pmde']
+            'PMRA [mas/yr]', 'PMDE [mas/yr]', 'RV [km/s]']
+COLNAMES = ['ra', 'dec', 'dist', 'pmra', 'pmde', 'rv']
 
 PLOT_BACKGROUND = True
 PLOT_3D_ALL = False
-PLOT_3D_MERGED = True
+PLOT_3D_MERGED = False
 PLOT_2D_ALL = True
 
 
@@ -489,7 +490,7 @@ if __name__ == "__main__":
     # construct data matrix
     data = np.array([rawdata[COLNAMES[0]], rawdata[COLNAMES[1]],
                      rawdata[COLNAMES[2]], rawdata[COLNAMES[3]],
-                     rawdata[COLNAMES[4]]]).T
+                     rawdata[COLNAMES[4]], rawdata[COLNAMES[5]]]).T
     # data = np.array([rawdata['X'], rawdata['Y'], rawdata['Z']]).T
 
     # get the true labels and group names
@@ -507,7 +508,7 @@ if __name__ == "__main__":
     printlog("Calculating clustering using 'DBSCAN'...")
     start = time.time()
 
-    sargs = dict(eps=5, min_samples=25)
+    sargs = dict(eps=10, min_samples=10)
     db = DBSCAN(**sargs).fit(data)
     end = time.time()
     # get mask and labels
