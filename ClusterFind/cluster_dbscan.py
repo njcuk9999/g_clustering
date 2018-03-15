@@ -35,7 +35,7 @@ WRITEPATH = WORKSPACE + '/data/Sim/Simulation_simple.fits'
 MARKERS = ['o', 'x', '+', '*']
 
 SUBSET = False
-SUBSETSIZE = 500000
+SUBSETSIZE = 100000
 
 DIMNAMES = ['X [pc]', 'Y [pc]', 'Z [pc]',
             'U [mas/yr]', 'V [mas/yr]', 'W [mas/yr]']
@@ -49,6 +49,24 @@ PLOT_2D_ALL = True
 # =============================================================================
 # Define functions
 # =============================================================================
+
+def normalise_data(data):
+
+    skipcols = ['row', 'group']
+
+    newdata = Table()
+
+    for col in data.colnames:
+        if col in skipcols:
+            newdata[col] = np.array(data[col])
+        else:
+            maxdata = np.max(data[col])
+            newdata[col] = np.array(data[col])/maxdata
+
+
+    return newdata
+
+
 def get_random_choices(array_length, num):
     rmask = random.choices(range(array_length), k=num)
     return rmask
@@ -483,21 +501,26 @@ if __name__ == "__main__":
     printlog("Loading data...")
     rawdata = Table.read(WRITEPATH)
 
+    # normalise the data
+    printlog("Normalising data...")
+    normdata = normalise_data(rawdata)
+
     # apply subset to data
+    printlog("Constructing data matrix")
     if SUBSET:
-        mask = get_random_choices(len(rawdata), SUBSETSIZE)
+        mask = get_random_choices(len(normdata), SUBSETSIZE)
     else:
-        mask = np.ones(len(rawdata['X']), dtype=bool)
-    rawdata = rawdata[mask]
+        mask = np.ones(len(normdata['X']), dtype=bool)
+    normdata = normdata[mask]
 
     # construct data matrix
-    data = np.array([rawdata['X'], rawdata['Y'], rawdata['Z'],
-                     rawdata['U'], rawdata['V'], rawdata['W']]).T
+    data = np.array([normdata['X'], normdata['Y'], normdata['Z'],
+                     normdata['U'], normdata['V'], normdata['W']]).T
     # data = np.array([rawdata['X'], rawdata['Y'], rawdata['Z']]).T
 
     # get the true labels and group names
-    labels_true = np.array(rawdata['row'])
-    groups = np.array(rawdata['group'])
+    labels_true = np.array(normdata['row'])
+    groups = np.array(normdata['group'])
 
     # convert data to 32 bit
     data = np.array(data, dtype=np.float32)
@@ -510,7 +533,7 @@ if __name__ == "__main__":
     printlog("Calculating clustering using 'DBSCAN'...")
     start = time.time()
 
-    sargs = dict(eps=5, min_samples=25)
+    sargs = dict(eps=0.05, min_samples=25)
     db = DBSCAN(**sargs).fit(data)
     end = time.time()
     # get mask and labels
