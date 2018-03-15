@@ -22,7 +22,7 @@ from matplotlib.patches import Ellipse
 import random
 from tqdm import tqdm
 import scipy.interpolate as interpolate
-
+import mpl_scatter_density
 
 # =============================================================================
 # Define variables
@@ -368,6 +368,9 @@ if __name__ == "__main__":
     # -------------------------------------------------------------------------
     print('\n Saving results to file...')
     save_population(sims)
+
+    print('Used MPL_SCATTER_DENSITY version={0}'
+          ''.format(mpl_scatter_density.__version__))
 
 # =============================================================================
 # End of code
