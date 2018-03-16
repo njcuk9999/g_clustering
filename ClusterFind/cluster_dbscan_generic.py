@@ -526,7 +526,6 @@ def compare_results2(labels_found, labels_true, names_true):
 
     return storage, group_found
 
-
 def print_comparison(storage, group_found):
 
     print('\n\n Simulated group identifications')
