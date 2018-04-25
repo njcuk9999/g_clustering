@@ -30,7 +30,7 @@ from mpl_toolkits.mplot3d import Axes3D
 # =============================================================================
 # Define paths
 WORKSPACE = '/scratch/Projects/Gaia_clustering'
-WRITEPATH = WORKSPACE + '/data/Sim/Simulation_simple.fits'
+WRITEPATH = WORKSPACE + '/data/gaiadr2_plx5_rv_goodcut.fits'
 
 # -----------------------------------------------------------------------------
 MARKERS = ['o', 'x', '+', '*']
@@ -41,7 +41,7 @@ SUBSETSIZE = 100000
 if len(sys.argv) > 1:
     case = int(sys.argv[1])
 else:
-    case = 1
+    case = 2
 
 if case == 1:
     DIMNAMES = ['X [pc]', 'Y [pc]', 'Z [pc]',
@@ -50,7 +50,7 @@ if case == 1:
 elif case == 2:
     DIMNAMES = ['RA [deg]', 'Dec [deg]', 'Distance [pc]',
                 'PMRA [mas/yr]', 'PMDE [mas/yr]', 'RV [km/s]']
-    COLNAMES = ['ra', 'dec', 'dist', 'pmra', 'pmde', 'rv']
+    COLNAMES = ['ra', 'dec', 'parallax', 'pmra', 'pmdec', 'radial_velocity']
 elif case == 3:
     DIMNAMES = ['RA [deg]', 'Dec [deg]', 'Distance [pc]',
                 'PMRA [mas/yr]', 'PMDE [mas/yr]']
