@@ -18,6 +18,7 @@ from astroquery.gaia import Gaia
 import numpy as np
 from tqdm import tqdm
 import os
+import warnings
 
 
 # =============================================================================
@@ -136,7 +137,8 @@ KEEP_COLS = [
 # Define functions
 # =============================================================================
 def sky_grid_wheres(min_ra=0.0, max_ra=360.0, min_dec=-90.0, max_dec=90.0,
-                    bits=36, overlap=1/3600.0, ra_col='ra', dec_col='dec'):
+                    bits=36, overlap=1/3600.0, ra_col='ra', dec_col='dec',
+                    return_query=True):
 
     gridsize = np.ceil(np.sqrt(bits)+1).astype(int)
 
@@ -163,6 +165,8 @@ def sky_grid_wheres(min_ra=0.0, max_ra=360.0, min_dec=-90.0, max_dec=90.0,
     # generate where conditions
     wheres = []
     ra_cent, dec_cent = [], []
+    ra_mins, ra_maxs = [], []
+    dec_mins, dec_maxs = [], []
     for it in tqdm(range(len(ramin))):
         for jt in range(len(decmin)):
             # get iteration values
@@ -171,6 +175,9 @@ def sky_grid_wheres(min_ra=0.0, max_ra=360.0, min_dec=-90.0, max_dec=90.0,
             # calculate centers
             ra_cent.append(np.mean([ra1, ra2]))
             dec_cent.append(np.mean([dec1, dec2]))
+            # store edges
+            ra_mins.append(ra1), ra_maxs.append(ra2)
+            dec_mins.append(dec1), dec_maxs.append(dec2)
             # start of condition
             cond = '('
             # add ra term
@@ -188,8 +195,10 @@ def sky_grid_wheres(min_ra=0.0, max_ra=360.0, min_dec=-90.0, max_dec=90.0,
             cond += ')'
             # add cond to wheres
             wheres.append(cond)
-
-    return wheres, ra_cent, dec_cent
+    if not return_query:
+        return ra_mins, ra_maxs, dec_mins, dec_maxs
+    else:
+        return wheres, ra_cent, dec_cent
 
 
 def make_query(source, cols, wheres):
@@ -211,6 +220,38 @@ def construct_table(rawtable, columnnames):
     return table
 
 
+def plot_regions(ramin, ramax, decmin, decmax):
+
+
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+
+    fig, frame = plt.subplots(ncols=1, nrows=1)
+    frame.set(xlim=(0, 360), ylim=(-90, 90))
+
+    for it in range(len(ramin)):
+
+        width = ramax[it] - ramin[it]
+        xcent = np.mean([ramax[it], ramin[it]])
+        x = ramin[it]
+
+        height = decmax[it] - decmin[it]
+        ycent = np.mean([decmax[it], decmin[it]])
+        y = decmin[it]
+
+        # construct rectangle
+        rect = patches.Rectangle((x, y), width, height, ec='r', fill=False)
+        # add to plot
+        frame.add_patch(rect)
+        # add centers
+        frame.scatter(xcent, ycent, marker='x', s=100, color='r')
+
+    plt.show()
+    plt.close()
+
+
+
+
 # =============================================================================
 # Start of code
 # =============================================================================
@@ -219,7 +260,7 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------
     # get ra/dec grid
     print('Creating grid')
-    griddata = sky_grid_wheres(bits=1024, overlap=1./3600.,
+    griddata = sky_grid_wheres(bits=36, overlap=0.0,
                                ra_col=RA, dec_col=DEC)
     gridwheres, racent, deccent = griddata
 
@@ -249,14 +290,18 @@ if __name__ == "__main__":
         # print job
         print(job)
         # get results
-        r = job.get_results()
+        with warnings.catch_warnings(record=True) as w:
+            r = job.get_results()
+            # patch table
+            print('\tConstructing table...')
+            rnew = construct_table(r, KEEP_COLS)
+            # save table to file
+            print('\tWriting table...')
+            rnew.write(fullpath, format='votable', overwrite=True)
 
-        # patch table
-        print('\tConstructing table...')
-        rnew = construct_table(r, KEEP_COLS)
-        # save table to file
-        print('\tWriting table...')
-        rnew.write(fullpath, format='votable', overwrite=True)
+        # clean up
+        del r
+        del rnew
 
 # =============================================================================
 # End of code
