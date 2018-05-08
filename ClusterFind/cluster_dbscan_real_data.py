@@ -34,7 +34,7 @@ from astrokin import convert
 # =============================================================================
 # Define paths
 WORKSPACE = '/scratch/Projects/Gaia_clustering'
-WRITEPATH = WORKSPACE + '/data/gaiadr2_plx5_rv_goodcut.fits'
+WRITEPATH = WORKSPACE + '/data/gaiadr2_plx5_rv_goodcut_eplx0.1.fits'
 MVGROUPS = WORKSPACE + '/data/Gagne/Clusters.csv'
 # -----------------------------------------------------------------------------
 MARKERS = ['o', 'x', '+', '*']
@@ -69,11 +69,17 @@ def get_region_data(filename):
     return rdata
 
 
-def normalise_data(data):
+def normalise_data(data, mode='max'):
     newdata = np.zeros_like(data)
-    for col in range(data.shape[1]):
-        maxdata = np.max(data[:, col])
-        newdata[:, col] = np.array(data[:, col])/maxdata
+    if mode == 'max':
+        for col in range(data.shape[1]):
+            maxdata = np.max(data[:, col])
+            newdata[:, col] = np.array(data[:, col])/maxdata
+    else:
+        for col in range(data.shape[1]):
+            mean = np.mean(data[:, col])
+            std = np.std(data[:, col])
+            newdata[:, col] = (data[:, col] - mean)/std
     return newdata
 
 
@@ -122,8 +128,8 @@ def plot_data(d):
                    marker='x', alpha=0.1,
                    zorder=1, color='k', linestyle='none')
         # limits
-        if limits is not None:
-            frame.set(xlim=limits[it][:2], ylim=limits[it][2:])
+        # if limits is not None:
+        #     frame.set(xlim=limits[it][:2], ylim=limits[it][2:])
         # labels
         frame.set(xlabel='{0}'.format(DIMNAMES[r1]),
                   ylabel='{0}'.format(DIMNAMES[r2]))
@@ -195,12 +201,12 @@ def plot_dims(d, idlabels, nclusters, kind='out', setlimits=None,
         frame.set(xlabel='{0}'.format(DIMNAMES[r1]),
                   ylabel='{0}'.format(DIMNAMES[r2]))
         # set limits
-        if setlimits is None:
-            frame.set(xlim=stats[:2], ylim=stats[2:])
-            grphlimits.append(stats)
-        else:
-            frame.set(xlim=setlimits[it][:2], ylim=setlimits[it][2:])
-            grphlimits.append(setlimits[it])
+        # if setlimits is None:
+        #     frame.set(xlim=stats[:2], ylim=stats[2:])
+        #     grphlimits.append(stats)
+        # else:
+        #     frame.set(xlim=setlimits[it][:2], ylim=setlimits[it][2:])
+        #     grphlimits.append(setlimits[it])
 
     # deal with blank frames
     for it in range(len(range1), nrows * ncols):
@@ -354,18 +360,31 @@ def printlog(message):
         unix_time = time.time()
         human_time = time.strftime('%H:%M:%S', time.localtime(unix_time))
         dsec = int((unix_time - int(unix_time)) * 100)
-        print('{0}.{1:02d} | {2}'.format(human_time, dsec, mess))
+        pargs = [BColors.OKGREEN, human_time, dsec, mess, BColors.ENDC]
+        print('{0}{1}.{2:02d} | {3}{4}'.format(*pargs))
 
 
 def plot_ellipse(frame, mu1, mu2, sig00, sig11, colour='k'):
     cov = np.diag([sig00, sig11])
     w, h, theta = cov_ellipse(cov, nsig=2.0)
     ell = Ellipse(xy=(mu1, mu2), width=w[0], height=h[0],
-                  angle=theta, color=colour)
+                  angle=theta, color=colour, zorder=5)
     ell.set_facecolor('none')
     frame.add_artist(ell)
 
     return frame
+
+
+# defines the colours
+class BColors:
+    HEADER = '\033[95;1m'
+    OKBLUE = '\033[94;1m'
+    OKGREEN = '\033[92;1m'
+    WARNING = '\033[93;1m'
+    FAIL = '\033[91;1m'
+    ENDC = '\033[0;0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 
 # =============================================================================
@@ -379,6 +398,24 @@ if __name__ == "__main__":
     # get the data
     printlog("Loading data...")
     rawdata = Table.read(WRITEPATH)
+
+    # make distance column
+    rawdata['distance'] = np.array(1000.0/rawdata['parallax'])
+    # distance cut
+    dmask = rawdata['distance'] < 175.0
+    rawdata = rawdata[dmask]
+    printlog('Distance cut, keep = {0}/{1}'.format(np.sum(dmask), len(dmask)))
+
+    # colour cut
+    g = np.array(rawdata['phot_g_mean_mag'])
+    G = g - 5 * (np.log10(rawdata['distance']) - 1)
+    bp = np.array(rawdata['phot_bp_mean_mag'])
+    rp = np.array(rawdata['phot_rp_mean_mag'])
+    #mask = G > (3.5 * (bp - rp) - 1.5)
+    #mask &= G < (3.5 * (bp - rp) + 2.75)
+    cmask = np.ones_like(g).astype(bool)
+    rawdata = rawdata[cmask]
+    printlog('Colour cut, keep = {0}/{1}'.format(np.sum(cmask), len(cmask)))
 
     # get the region data
     printlog("Reading region data...")
@@ -406,7 +443,7 @@ if __name__ == "__main__":
     ndata = normalise_data(data)
 
     # convert data to 32 bit
-    ndata = np.array(ndata, dtype=np.float32)
+    ndata = np.array(ndata, dtype=np.float64)
 
     # ----------------------------------------------------------------------
     # DBscan example from :
@@ -416,7 +453,7 @@ if __name__ == "__main__":
     printlog("Calculating clustering using 'DBSCAN'...")
     start = time.time()
 
-    sargs = dict(eps=0.1, min_samples=10)
+    sargs = dict(eps=0.05, min_samples=50, algorithm='kd_tree')
     db = DBSCAN(**sargs).fit(ndata)
     end = time.time()
 
@@ -427,14 +464,15 @@ if __name__ == "__main__":
     # stats
     # Number of clusters in labels, ignoring noise if present.
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-    print('Number of clusters found = {0}'.format(n_clusters))
+    printlog('Number of clusters found = {0}'.format(n_clusters))
 
     # report timing
     printlog('\t Time taken = {0} s'.format(end - start))
 
 
 
-    # ----------------------------------------------------------------------
+    # ---------------------
+    # ps-------------------------------------------------
     # Plot result
     printlog('Plotting graphs...')
 
